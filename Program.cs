@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -14,11 +15,15 @@ foreach ((string tf, JsonNode? packages) in targets)
 {
 	ConcurrentDictionary<Package, Refs> allKnownPackagesForTF = new();
 
+	allKnownPackagesForTF.TryAdd(Package.ThisProject, new());
+
 	foreach ((string name, JsonNode? details) in packages!.AsObject())
 	{
 		Package currentPackage = Package.FromSlashName(name);
 
 		Refs refs = allKnownPackagesForTF.GetOrAdd(currentPackage, (_) => new Refs());
+
+		refs.ReferencesMe.Add(Package.ThisProject);
 
 		JsonObject? dependencies = details!.AsObject()["dependencies"]?.AsObject();
 
@@ -41,25 +46,42 @@ foreach ((string tf, JsonNode? packages) in targets)
 		{
 			Stack<StackEntry> stack = new();
 
-			stack.Push(new(r, IndentLevel: 0));
+			List<ImmutableList<Package>> routes = new();
+
+			stack.Push(new(r, IndentLevel: 0, ImmutableList<Package>.Empty.Add(r)));
 
 			while (stack.TryPop(out StackEntry? current))
 			{
-                Console.WriteLine($"{new string(' ', current.IndentLevel)}{current.Package}");
-
-                foreach (var item in allKnownPackagesForTF[current.Package].ReferencesMe)
-                {
-					stack.Push(new(item, current.IndentLevel + 1));
-                }
+				//Console.WriteLine($"{new string(' ', current.IndentLevel)}{current.Package}");
+				foreach (var item in allKnownPackagesForTF[current.Package].ReferencesMe)
+				{
+					if (item == Package.ThisProject)
+					{
+						routes.Add(current.DependencyChain.Reverse());
+                    }
+					else
+					{
+						stack.Push(new(item, current.IndentLevel + 1, current.DependencyChain.Add(item)));
+					}
+				}
             }
+
+			foreach (var route in routes.OrderBy((l)=>l.Count))
+			{
+                Console.WriteLine($"Project->{string.Join("->", route.Select(p => p.ToString()))}");
+
+            }
+
         }
-	}
+    }
 }
 
 Console.WriteLine("done");
 
 record Package(string Name, string Version)
 {
+	public static Package ThisProject = new("THE PROJECT", "CURRENT PROJECT VERSION");
+
 	public static Package FromSlashName(string slashName)
 	{
         string[] parts = slashName.Split('/');
@@ -75,7 +97,7 @@ record Package(string Name, string Version)
     }
 }
 
-record class StackEntry(Package Package, int IndentLevel);
+record class StackEntry(Package Package, int IndentLevel, ImmutableList<Package> DependencyChain);
 
 class Refs
 {

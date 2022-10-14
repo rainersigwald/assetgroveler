@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "assetgroveler": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\Users\\raines\\Downloads\\project.assets.json"
+    }
+  }
+}
