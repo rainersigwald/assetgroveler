@@ -57,7 +57,10 @@ foreach ((string tf, JsonNode? packages) in targets)
 				{
 					if (item == Package.ThisProject)
 					{
-						routes.Add(current.DependencyChain.Reverse());
+						if (!current.DependencyChain.Any((p)=>p.Version == "0.0.0"))
+						{
+                            routes.Add(current.DependencyChain.Reverse());
+                        }
                     }
 					else
 					{
